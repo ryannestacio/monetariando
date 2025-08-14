@@ -1,38 +1,116 @@
 import 'package:flutter/material.dart';
 import 'package:monetariando/screens/customer_registration_screen.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:uuid/uuid.dart';
 
-//import 'package:firebase_core/firebase_core.dart';
-//import 'package:cloud_firestore/cloud_firestore.dart';
-//import 'package:firebase_auth/firebase_auth.dart';
-//import 'package:uuid/uuid.dart';
+// Importações simuladas para o ambiente Canvas
+// Em um projeto real, você precisaria adicionar dependências no pubspec.yaml
+// e usar `main` assíncrono para inicializar o Firebase.
 
-class DashboardScreen extends StatelessWidget {
+// --- Componentes para as Telas ---
+class DashboardScreen extends StatefulWidget {
+  @override
+  _DashboardScreenState createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  // Lista para armazenar os documentos dos clientes
+  List<DocumentSnapshot> _clients = [];
+  bool _isLoading = true;
+  String _errorMessage = '';
+
+  @override
+  void initState() {
+    super.initState();
+    // Inicia a busca pelos clientes quando a tela é carregada
+    _fetchClients();
+  }
+
+  // Função para buscar os dados dos clientes no Firestore
+  Future<void> _fetchClients() async {
+    try {
+      // Obtenha a instância do Firestore
+      final db = FirebaseFirestore.instance;
+
+      // Ouve as mudanças na coleção 'clientes' em tempo real
+      db
+          .collection('clientes')
+          .snapshots()
+          .listen(
+            (snapshot) {
+              if (mounted) {
+                setState(() {
+                  _clients = snapshot.docs;
+                  _isLoading = false;
+                });
+              }
+            },
+            onError: (e) {
+              if (mounted) {
+                setState(() {
+                  _isLoading = false;
+                  _errorMessage = 'Erro ao carregar clientes: $e';
+                  print('Erro ao carregar clientes: $e');
+                });
+              }
+            },
+          );
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Erro ao inicializar Firestore: $e';
+          print('Erro ao inicializar Firestore: $e');
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
               'Dashboard de Vendas',
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 16),
-            Card(
-              elevation: 4,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Text(
-                  'Aqui teremos os relatórios de clientes e vendas.',
-                  style: TextStyle(color: Colors.grey[700]),
-                  textAlign: TextAlign.center,
-                ),
-              ),
+            Expanded(
+              child: _isLoading
+                  ? Center(child: CircularProgressIndicator())
+                  : _errorMessage.isNotEmpty
+                  ? Center(
+                      child: Text(
+                        _errorMessage,
+                        style: TextStyle(color: Colors.red),
+                      ),
+                    )
+                  : _clients.isEmpty
+                  ? Center(child: Text('Nenhum cliente cadastrado ainda.'))
+                  : ListView.builder(
+                      itemCount: _clients.length,
+                      itemBuilder: (context, index) {
+                        final clientData =
+                            _clients[index].data() as Map<String, dynamic>;
+                        return Card(
+                          elevation: 4,
+                          margin: EdgeInsets.symmetric(vertical: 8.0),
+                          child: ListTile(
+                            title: Text(
+                              clientData['nome'] ?? 'Nome não disponível',
+                            ),
+                            subtitle: Text(
+                              clientData['cpf'] ?? 'CPF não disponível',
+                            ),
+                          ),
+                        );
+                      },
+                    ),
             ),
           ],
         ),
